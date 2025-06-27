@@ -82,10 +82,15 @@ async def send_otp(phone: str, hash: Optional[str] = None, affiliate_code: Optio
             async with session.post(url, json=payload, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
+                    # Euron server returns data in response.data.data structure
+                    # response.data = { data: { phone, session }, message: string }
+                    response_data = data.get("data", {})
+                    message = data.get("message", "OTP sent successfully")
+                    
                     return SendOtpResponse(
                         success=True,
-                        message=data.get("message", "OTP sent successfully"),
-                        session=data.get("session")
+                        message=message,
+                        session=response_data.get("session")
                     )
                 else:
                     error_data = await response.json()
@@ -124,8 +129,10 @@ async def verify_otp(phone: str, code: str, session: str, affiliate_code: Option
             async with session.post(url, json=payload, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Euron server returns data in response.data.data
-                    response_data = data.get("data", {}).get("data", data)
+                    # Euron server returns data in response.data.data structure
+                    # response.data = { data: { message, type, accessToken, expiresAt, userId }, message: string }
+                    response_data = data.get("data", {})
+                    message = data.get("message", "OTP verified successfully")
                     
                     # Parse the Euron response structure
                     euron_response = EuronOtpResponse(**response_data)
@@ -143,7 +150,7 @@ async def verify_otp(phone: str, code: str, session: str, affiliate_code: Option
                     
                     return VerifyOtpResponse(
                         success=True,
-                        message=euron_response.message,
+                        message=message,
                         user=user_data,
                         token=euron_response.accessToken
                     )
@@ -181,8 +188,10 @@ async def authenticate_with_google(google_token: str, affiliate_code: Optional[s
             async with session.post(url, json=payload, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Euron server returns data in response.data.data
-                    response_data = data.get("data", {}).get("data", data)
+                    # Euron server returns data in response.data.data structure
+                    # response.data = { data: { accessToken, type, expiresAt, userId }, message: string }
+                    response_data = data.get("data", {})
+                    message = data.get("message", "Google authentication successful")
                     
                     # Parse the Euron response structure
                     euron_response = EuronGoogleResponse(**response_data)
@@ -202,7 +211,7 @@ async def authenticate_with_google(google_token: str, affiliate_code: Optional[s
                     
                     return GoogleAuthResponse(
                         success=True,
-                        message="Google authentication successful",
+                        message=message,
                         user=user_data,
                         token=euron_response.accessToken
                     )
