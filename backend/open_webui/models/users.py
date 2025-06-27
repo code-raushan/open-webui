@@ -23,7 +23,7 @@ class User(Base):
 
     id = Column(String, primary_key=True)
     name = Column(String)
-    email = Column(String)
+    email = Column(String, nullable=True, unique=True)
     role = Column(String)
     profile_image_url = Column(Text)
 
@@ -36,6 +36,11 @@ class User(Base):
     info = Column(JSONField, nullable=True)
 
     oauth_sub = Column(Text, unique=True)
+    
+    # External authentication fields
+    external_user_id = Column(String, nullable=True, unique=True)
+    phone = Column(String, nullable=True, unique=True)
+    auth_provider = Column(String, nullable=True)  # 'CREDENTIALS', 'GOOGLE', 'OTP'
 
 
 class UserSettings(BaseModel):
@@ -47,7 +52,7 @@ class UserSettings(BaseModel):
 class UserModel(BaseModel):
     id: str
     name: str
-    email: str
+    email: Optional[str] = None
     role: str = "pending"
     profile_image_url: str
 
@@ -60,6 +65,11 @@ class UserModel(BaseModel):
     info: Optional[dict] = None
 
     oauth_sub: Optional[str] = None
+    
+    # External authentication fields
+    external_user_id: Optional[str] = None
+    phone: Optional[str] = None
+    auth_provider: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -111,6 +121,9 @@ class UsersTable:
         profile_image_url: str = "/user.png",
         role: str = "pending",
         oauth_sub: Optional[str] = None,
+        external_user_id: Optional[str] = None,
+        phone: Optional[str] = None,
+        auth_provider: Optional[str] = None,
     ) -> Optional[UserModel]:
         with get_db() as db:
             user = UserModel(
@@ -124,6 +137,9 @@ class UsersTable:
                     "created_at": int(time.time()),
                     "updated_at": int(time.time()),
                     "oauth_sub": oauth_sub,
+                    "external_user_id": external_user_id,
+                    "phone": phone,
+                    "auth_provider": auth_provider,
                 }
             )
             result = User(**user.model_dump())
@@ -163,6 +179,22 @@ class UsersTable:
         try:
             with get_db() as db:
                 user = db.query(User).filter_by(oauth_sub=sub).first()
+                return UserModel.model_validate(user)
+        except Exception:
+            return None
+
+    def get_user_by_external_id(self, external_user_id: str) -> Optional[UserModel]:
+        try:
+            with get_db() as db:
+                user = db.query(User).filter_by(external_user_id=external_user_id).first()
+                return UserModel.model_validate(user)
+        except Exception:
+            return None
+
+    def get_user_by_phone(self, phone: str) -> Optional[UserModel]:
+        try:
+            with get_db() as db:
+                user = db.query(User).filter_by(phone=phone).first()
                 return UserModel.model_validate(user)
         except Exception:
             return None

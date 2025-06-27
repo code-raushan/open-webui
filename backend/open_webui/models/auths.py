@@ -21,16 +21,24 @@ class Auth(Base):
     __tablename__ = "auth"
 
     id = Column(String, primary_key=True)
-    email = Column(String)
+    email = Column(String, nullable=True, unique=True)
     password = Column(Text)
     active = Column(Boolean)
+    
+    # External authentication fields
+    external_user_id = Column(String, nullable=True, unique=True)
+    phone = Column(String, nullable=True, unique=True)
+    auth_provider = Column(String, nullable=True)
 
 
 class AuthModel(BaseModel):
     id: str
-    email: str
+    email: Optional[str] = None
     password: str
     active: bool = True
+    external_user_id: Optional[str] = None
+    phone: Optional[str] = None
+    auth_provider: Optional[str] = None
 
 
 ####################
@@ -103,6 +111,9 @@ class AuthsTable:
         profile_image_url: str = "/user.png",
         role: str = "pending",
         oauth_sub: Optional[str] = None,
+        external_user_id: Optional[str] = None,
+        phone: Optional[str] = None,
+        auth_provider: Optional[str] = None,
     ) -> Optional[UserModel]:
         with get_db() as db:
             log.info("insert_new_auth")
@@ -110,13 +121,21 @@ class AuthsTable:
             id = str(uuid.uuid4())
 
             auth = AuthModel(
-                **{"id": id, "email": email, "password": password, "active": True}
+                **{
+                    "id": id, 
+                    "email": email, 
+                    "password": password, 
+                    "active": True,
+                    "external_user_id": external_user_id,
+                    "phone": phone,
+                    "auth_provider": auth_provider,
+                }
             )
             result = Auth(**auth.model_dump())
             db.add(result)
 
             user = Users.insert_new_user(
-                id, name, email, profile_image_url, role, oauth_sub
+                id, name, email, profile_image_url, role, oauth_sub, external_user_id, phone, auth_provider
             )
 
             db.commit()
@@ -164,6 +183,28 @@ class AuthsTable:
         try:
             with get_db() as db:
                 auth = db.query(Auth).filter_by(email=email, active=True).first()
+                if auth:
+                    user = Users.get_user_by_id(auth.id)
+                    return user
+        except Exception:
+            return None
+
+    def authenticate_user_by_external_id(self, external_user_id: str) -> Optional[UserModel]:
+        log.info(f"authenticate_user_by_external_id: {external_user_id}")
+        try:
+            with get_db() as db:
+                auth = db.query(Auth).filter_by(external_user_id=external_user_id, active=True).first()
+                if auth:
+                    user = Users.get_user_by_id(auth.id)
+                    return user
+        except Exception:
+            return None
+
+    def authenticate_user_by_phone(self, phone: str) -> Optional[UserModel]:
+        log.info(f"authenticate_user_by_phone: {phone}")
+        try:
+            with get_db() as db:
+                auth = db.query(Auth).filter_by(phone=phone, active=True).first()
                 if auth:
                     user = Users.get_user_by_id(auth.id)
                     return user

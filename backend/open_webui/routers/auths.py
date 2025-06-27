@@ -50,6 +50,16 @@ from open_webui.utils.auth import (
 )
 from open_webui.utils.webhook import post_webhook
 from open_webui.utils.access_control import get_permissions
+from open_webui.utils.external_auth import (
+    send_otp,
+    verify_otp,
+    authenticate_with_google,
+    extract_user_info_from_external_response,
+    build_full_name,
+    SendOtpRequest,
+    VerifyOtpRequest,
+    GoogleAuthRequest,
+)
 
 from typing import Optional, List
 
@@ -1048,3 +1058,327 @@ async def get_api_key(user=Depends(get_current_user)):
         }
     else:
         raise HTTPException(404, detail=ERROR_MESSAGES.API_KEY_NOT_FOUND)
+
+
+############################
+# External Authentication Routes
+############################
+
+
+@router.post("/external/send-otp")
+async def external_send_otp(
+    request: Request,
+    form_data: SendOtpRequest,
+    affiliate_code: Optional[str] = None
+):
+    """
+    Send OTP via external authentication server
+    """
+    if not request.app.state.config.ENABLE_EXTERNAL_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="External authentication is not enabled"
+        )
+    
+    if not request.app.state.config.EXTERNAL_AUTH_ENABLE_OTP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP authentication is not enabled"
+        )
+    
+    try:
+        response = await send_otp(
+            phone=form_data.phone,
+            hash=form_data.hash,
+            affiliate_code=affiliate_code
+        )
+        
+        if response.success:
+            return {
+                "success": True,
+                "message": response.message,
+                "session": response.session
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=response.message
+            )
+    except Exception as e:
+        log.error(f"Error in external send OTP: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send OTP"
+        )
+
+
+@router.post("/external/verify-otp", response_model=SessionUserResponse)
+async def external_verify_otp(
+    request: Request,
+    response: Response,
+    form_data: VerifyOtpRequest,
+    affiliate_code: Optional[str] = None
+):
+    """
+    Verify OTP and authenticate user via external authentication server
+    """
+    if not request.app.state.config.ENABLE_EXTERNAL_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="External authentication is not enabled"
+        )
+    
+    if not request.app.state.config.EXTERNAL_AUTH_ENABLE_OTP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP authentication is not enabled"
+        )
+    
+    try:
+        verify_response = await verify_otp(
+            phone=form_data.phone,
+            code=form_data.code,
+            session=form_data.session,
+            affiliate_code=affiliate_code
+        )
+        
+        if not verify_response.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=verify_response.message
+            )
+        
+        if not verify_response.user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No user data received from external server"
+            )
+        
+        # Extract user information from external response
+        user_info = extract_user_info_from_external_response(verify_response.user)
+        external_user_id = user_info["external_user_id"]
+        email = user_info.get("email")
+        phone = user_info.get("phone")
+        first_name = user_info.get("firstName", "")
+        last_name = user_info.get("lastName")
+        profile_pic = user_info.get("profilePic", "/user.png")
+        auth_provider = user_info.get("authProvider", "OTP")
+        
+        # Build full name
+        full_name = build_full_name(first_name, last_name)
+        
+        # Check if user already exists
+        user = None
+        if external_user_id:
+            user = Users.get_user_by_external_id(external_user_id)
+        elif email:
+            user = Users.get_user_by_email(email)
+        elif phone:
+            user = Users.get_user_by_phone(phone)
+        
+        # Create new user if doesn't exist
+        if not user:
+            user_count = Users.get_num_users()
+            role = "admin" if user_count == 0 else request.app.state.config.DEFAULT_USER_ROLE
+            
+            user = Auths.insert_new_auth(
+                email=email or f"{phone}@external.local",
+                password=str(uuid.uuid4()),  # Random password for external auth
+                name=full_name,
+                profile_image_url=profile_pic,
+                role=role,
+                external_user_id=external_user_id,
+                phone=phone,
+                auth_provider=auth_provider
+            )
+            
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=ERROR_MESSAGES.CREATE_USER_ERROR
+                )
+        
+        # Create JWT token
+        expires_delta = parse_duration(request.app.state.config.JWT_EXPIRES_IN)
+        expires_at = None
+        if expires_delta:
+            expires_at = int(time.time()) + int(expires_delta.total_seconds())
+
+        token = create_token(
+            data={"id": user.id},
+            expires_delta=expires_delta,
+        )
+
+        # Set the cookie token
+        response.set_cookie(
+            key="token",
+            value=token,
+            expires=(
+                datetime.datetime.fromtimestamp(expires_at, datetime.timezone.utc)
+                if expires_at
+                else None
+            ),
+            httponly=True,
+            samesite=WEBUI_AUTH_COOKIE_SAME_SITE,
+            secure=WEBUI_AUTH_COOKIE_SECURE,
+        )
+
+        user_permissions = get_permissions(
+            user.id, request.app.state.config.USER_PERMISSIONS
+        )
+
+        return {
+            "token": token,
+            "token_type": "Bearer",
+            "expires_at": expires_at,
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "profile_image_url": user.profile_image_url,
+            "permissions": user_permissions,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error in external verify OTP: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify OTP"
+        )
+
+
+@router.post("/external/google", response_model=SessionUserResponse)
+async def external_google_auth(
+    request: Request,
+    response: Response,
+    form_data: GoogleAuthRequest,
+    affiliate_code: Optional[str] = None
+):
+    """
+    Authenticate with Google via external authentication server
+    """
+    if not request.app.state.config.ENABLE_EXTERNAL_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="External authentication is not enabled"
+        )
+    
+    if not request.app.state.config.EXTERNAL_AUTH_ENABLE_GOOGLE:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google authentication is not enabled"
+        )
+    
+    try:
+        google_response = await authenticate_with_google(
+            google_token=form_data.googleToken,
+            affiliate_code=affiliate_code
+        )
+        
+        if not google_response.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=google_response.message
+            )
+        
+        if not google_response.user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No user data received from external server"
+            )
+        
+        # Extract user information from external response
+        user_info = extract_user_info_from_external_response(google_response.user)
+        external_user_id = user_info["external_user_id"]
+        email = user_info.get("email")
+        phone = user_info.get("phone")
+        first_name = user_info.get("firstName", "")
+        last_name = user_info.get("lastName")
+        profile_pic = user_info.get("profilePic", "/user.png")
+        auth_provider = user_info.get("authProvider", "GOOGLE")
+        
+        # Build full name
+        full_name = build_full_name(first_name, last_name)
+        
+        # Check if user already exists
+        user = None
+        if external_user_id:
+            user = Users.get_user_by_external_id(external_user_id)
+        elif email:
+            user = Users.get_user_by_email(email)
+        elif phone:
+            user = Users.get_user_by_phone(phone)
+        
+        # Create new user if doesn't exist
+        if not user:
+            user_count = Users.get_num_users()
+            role = "admin" if user_count == 0 else request.app.state.config.DEFAULT_USER_ROLE
+            
+            user = Auths.insert_new_auth(
+                email=email or f"{phone}@external.local",
+                password=str(uuid.uuid4()),  # Random password for external auth
+                name=full_name,
+                profile_image_url=profile_pic,
+                role=role,
+                external_user_id=external_user_id,
+                phone=phone,
+                auth_provider=auth_provider
+            )
+            
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=ERROR_MESSAGES.CREATE_USER_ERROR
+                )
+        
+        # Create JWT token
+        expires_delta = parse_duration(request.app.state.config.JWT_EXPIRES_IN)
+        expires_at = None
+        if expires_delta:
+            expires_at = int(time.time()) + int(expires_delta.total_seconds())
+
+        token = create_token(
+            data={"id": user.id},
+            expires_delta=expires_delta,
+        )
+
+        # Set the cookie token
+        response.set_cookie(
+            key="token",
+            value=token,
+            expires=(
+                datetime.datetime.fromtimestamp(expires_at, datetime.timezone.utc)
+                if expires_at
+                else None
+            ),
+            httponly=True,
+            samesite=WEBUI_AUTH_COOKIE_SAME_SITE,
+            secure=WEBUI_AUTH_COOKIE_SECURE,
+        )
+
+        user_permissions = get_permissions(
+            user.id, request.app.state.config.USER_PERMISSIONS
+        )
+
+        return {
+            "token": token,
+            "token_type": "Bearer",
+            "expires_at": expires_at,
+            "id": user.id,
+            "email": user.email,
+            "name": user.name,
+            "role": user.role,
+            "profile_image_url": user.profile_image_url,
+            "permissions": user_permissions,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Error in external Google auth: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to authenticate with Google"
+        )
