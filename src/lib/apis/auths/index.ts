@@ -1,4 +1,4 @@
-import { WEBUI_API_BASE_URL } from '$lib/constants';
+import { WEBUI_API_BASE_URL } from '../../constants';
 
 export const getAdminDetails = async (token: string) => {
 	let error = null;
@@ -690,8 +690,88 @@ export const deleteAPIKey = async (token: string) => {
 			error = err.detail;
 			return null;
 		});
+
 	if (error) {
 		throw error;
 	}
+
+	return res;
+};
+
+// External Authentication - OTP
+export const sendOtp = async (phone: string, hash?: string, affiliateCode?: string) => {
+	let error = null;
+
+	const params = new URLSearchParams();
+	if (affiliateCode) {
+		params.append('affiliate_code', affiliateCode);
+	}
+
+	const url = `${WEBUI_API_BASE_URL}/auths/external/send-otp${params.toString() ? `?${params.toString()}` : ''}`;
+
+	const res = await fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		credentials: 'include',
+		body: JSON.stringify({
+			phone: phone,
+			hash: hash
+		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};
+
+export const verifyOtp = async (phone: string, code: string, session: string, affiliateCode?: string) => {
+	let error = null;
+
+	const params = new URLSearchParams();
+	if (affiliateCode) {
+		params.append('affiliate_code', affiliateCode);
+	}
+
+	const url = `${WEBUI_API_BASE_URL}/auths/external/verify-otp${params.toString() ? `?${params.toString()}` : ''}`;
+
+	const res = await fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		credentials: 'include',
+		body: JSON.stringify({
+			phone: phone,
+			code: code,
+			session: session
+		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
 	return res;
 };

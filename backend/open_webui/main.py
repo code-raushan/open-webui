@@ -1534,6 +1534,8 @@ async def get_app_config(request: Request):
             "enable_signup": app.state.config.ENABLE_SIGNUP,
             "enable_login_form": app.state.config.ENABLE_LOGIN_FORM,
             "enable_websocket": ENABLE_WEBSOCKET_SUPPORT,
+            "enable_external_auth": app.state.config.ENABLE_EXTERNAL_AUTH,
+            "external_auth_enable_otp": app.state.config.EXTERNAL_AUTH_ENABLE_OTP,
             **(
                 {
                     "enable_direct_connections": app.state.config.ENABLE_DIRECT_CONNECTIONS,

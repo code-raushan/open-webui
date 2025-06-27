@@ -3141,29 +3141,29 @@ LDAP_ATTRIBUTE_FOR_GROUPS = PersistentConfig(
 ENABLE_EXTERNAL_AUTH = PersistentConfig(
     "ENABLE_EXTERNAL_AUTH",
     "external_auth.enable",
-    os.environ.get("ENABLE_EXTERNAL_AUTH", "true").lower() == "true",
+    True,  # Set directly to True instead of using environment variable
 )
-#TODO: Change to production URL before production deployment
+
 EXTERNAL_AUTH_BASE_URL = PersistentConfig(
     "EXTERNAL_AUTH_BASE_URL",
     "external_auth.base_url",
-    os.environ.get("EXTERNAL_AUTH_BASE_URL", "https://dev-api.euron.one/api/v1/auth"),
+    "https://dev-api.euron.one/api/v1/auth",  # Set directly to Euron API base URL
 )
 
 EXTERNAL_AUTH_TIMEOUT = PersistentConfig(
     "EXTERNAL_AUTH_TIMEOUT",
     "external_auth.timeout",
-    int(os.environ.get("EXTERNAL_AUTH_TIMEOUT", "30")),
+    30,  # Set directly instead of using environment variable
 )
 
 EXTERNAL_AUTH_ENABLE_OTP = PersistentConfig(
     "EXTERNAL_AUTH_ENABLE_OTP",
     "external_auth.enable_otp",
-    os.environ.get("EXTERNAL_AUTH_ENABLE_OTP", "true").lower() == "true",
+    True,  # Set directly to True instead of using environment variable
 )
 
 EXTERNAL_AUTH_ENABLE_GOOGLE = PersistentConfig(
     "EXTERNAL_AUTH_ENABLE_GOOGLE",
     "external_auth.enable_google",
-    os.environ.get("EXTERNAL_AUTH_ENABLE_GOOGLE", "true").lower() == "true",
+    True,  # Set directly to True instead of using environment variable
 )
