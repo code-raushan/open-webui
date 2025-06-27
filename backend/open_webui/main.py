@@ -358,6 +358,12 @@ from open_webui.config import (
     ENABLE_LDAP_GROUP_MANAGEMENT,
     ENABLE_LDAP_GROUP_CREATION,
     LDAP_ATTRIBUTE_FOR_GROUPS,
+    # External Authentication
+    ENABLE_EXTERNAL_AUTH,
+    EXTERNAL_AUTH_BASE_URL,
+    EXTERNAL_AUTH_TIMEOUT,
+    EXTERNAL_AUTH_ENABLE_OTP,
+    EXTERNAL_AUTH_ENABLE_GOOGLE,
     # Misc
     ENV,
     CACHE_DIR,
@@ -689,6 +695,13 @@ app.state.config.LDAP_CIPHERS = LDAP_CIPHERS
 app.state.config.ENABLE_LDAP_GROUP_MANAGEMENT = ENABLE_LDAP_GROUP_MANAGEMENT
 app.state.config.ENABLE_LDAP_GROUP_CREATION = ENABLE_LDAP_GROUP_CREATION
 app.state.config.LDAP_ATTRIBUTE_FOR_GROUPS = LDAP_ATTRIBUTE_FOR_GROUPS
+
+# For External Authentication
+app.state.config.ENABLE_EXTERNAL_AUTH = ENABLE_EXTERNAL_AUTH
+app.state.config.EXTERNAL_AUTH_BASE_URL = EXTERNAL_AUTH_BASE_URL
+app.state.config.EXTERNAL_AUTH_TIMEOUT = EXTERNAL_AUTH_TIMEOUT
+app.state.config.EXTERNAL_AUTH_ENABLE_OTP = EXTERNAL_AUTH_ENABLE_OTP
+app.state.config.EXTERNAL_AUTH_ENABLE_GOOGLE = EXTERNAL_AUTH_ENABLE_GOOGLE
 
 
 app.state.AUTH_TRUSTED_EMAIL_HEADER = WEBUI_AUTH_TRUSTED_EMAIL_HEADER
@@ -1521,6 +1534,8 @@ async def get_app_config(request: Request):
             "enable_signup": app.state.config.ENABLE_SIGNUP,
             "enable_login_form": app.state.config.ENABLE_LOGIN_FORM,
             "enable_websocket": ENABLE_WEBSOCKET_SUPPORT,
+            "enable_external_auth": app.state.config.ENABLE_EXTERNAL_AUTH,
+            "external_auth_enable_otp": app.state.config.EXTERNAL_AUTH_ENABLE_OTP,
             **(
                 {
                     "enable_direct_connections": app.state.config.ENABLE_DIRECT_CONNECTIONS,

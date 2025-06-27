@@ -1002,7 +1002,7 @@ MODEL_ORDER_LIST = PersistentConfig(
 DEFAULT_USER_ROLE = PersistentConfig(
     "DEFAULT_USER_ROLE",
     "ui.default_user_role",
-    os.getenv("DEFAULT_USER_ROLE", "pending"),
+    os.getenv("DEFAULT_USER_ROLE", "user"),
 )
 
 PENDING_USER_OVERLAY_TITLE = PersistentConfig(
@@ -1439,7 +1439,7 @@ FOLLOW_UP_GENERATION_PROMPT_TEMPLATE = PersistentConfig(
 DEFAULT_FOLLOW_UP_GENERATION_PROMPT_TEMPLATE = """### Task:
 Suggest 3-5 relevant follow-up questions or prompts that the user might naturally ask next in this conversation as a **user**, based on the chat history, to help continue or deepen the discussion.
 ### Guidelines:
-- Write all follow-up questions from the user’s point of view, directed to the assistant.
+- Write all follow-up questions from the user's point of view, directed to the assistant.
 - Make questions concise, clear, and directly related to the discussed topic(s).
 - Only suggest follow-ups that make sense given the chat content and do not repeat what was already covered.
 - If the conversation is very short or not specific, suggest more general (but relevant) follow-ups the user might ask.
@@ -3131,4 +3131,39 @@ LDAP_ATTRIBUTE_FOR_GROUPS = PersistentConfig(
     "LDAP_ATTRIBUTE_FOR_GROUPS",
     "ldap.server.attribute_for_groups",
     os.environ.get("LDAP_ATTRIBUTE_FOR_GROUPS", "memberOf"),
+)
+
+
+####################################
+# External Authentication
+####################################
+
+ENABLE_EXTERNAL_AUTH = PersistentConfig(
+    "ENABLE_EXTERNAL_AUTH",
+    "external_auth.enable",
+    True,  # Set directly to True instead of using environment variable
+)
+
+EXTERNAL_AUTH_BASE_URL = PersistentConfig(
+    "EXTERNAL_AUTH_BASE_URL",
+    "external_auth.base_url",
+    "https://dev-api.euron.one/api/v1/auth",  # Set directly to Euron API base URL
+)
+
+EXTERNAL_AUTH_TIMEOUT = PersistentConfig(
+    "EXTERNAL_AUTH_TIMEOUT",
+    "external_auth.timeout",
+    30,  # Set directly instead of using environment variable
+)
+
+EXTERNAL_AUTH_ENABLE_OTP = PersistentConfig(
+    "EXTERNAL_AUTH_ENABLE_OTP",
+    "external_auth.enable_otp",
+    True,  # Set directly to True instead of using environment variable
+)
+
+EXTERNAL_AUTH_ENABLE_GOOGLE = PersistentConfig(
+    "EXTERNAL_AUTH_ENABLE_GOOGLE",
+    "external_auth.enable_google",
+    True,  # Set directly to True instead of using environment variable
 )

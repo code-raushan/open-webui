@@ -21,16 +21,24 @@ class Auth(Base):
     __tablename__ = "auth"
 
     id = Column(String, primary_key=True)
-    email = Column(String)
-    password = Column(Text)
+    email = Column(String, nullable=True, unique=True)
+    password = Column(Text, nullable=True)
     active = Column(Boolean)
+    
+    # External authentication fields
+    external_user_id = Column(String, nullable=True, unique=True)
+    phone = Column(String, nullable=True, unique=True)
+    auth_provider = Column(String, nullable=True)
 
 
 class AuthModel(BaseModel):
     id: str
-    email: str
-    password: str
+    email: Optional[str] = None
+    password: Optional[str] = None
     active: bool = True
+    external_user_id: Optional[str] = None
+    phone: Optional[str] = None
+    auth_provider: Optional[str] = None
 
 
 ####################
@@ -49,7 +57,7 @@ class ApiKey(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: str
+    email: Optional[str] = None
     name: str
     role: str
     profile_image_url: str
@@ -60,7 +68,7 @@ class SigninResponse(Token, UserResponse):
 
 
 class SigninForm(BaseModel):
-    email: str
+    email: Optional[str] = None
     password: str
 
 
@@ -85,7 +93,7 @@ class UpdatePasswordForm(BaseModel):
 
 class SignupForm(BaseModel):
     name: str
-    email: str
+    email: Optional[str] = None
     password: str
     profile_image_url: Optional[str] = "/user.png"
 
@@ -97,12 +105,15 @@ class AddUserForm(SignupForm):
 class AuthsTable:
     def insert_new_auth(
         self,
-        email: str,
-        password: str,
         name: str,
+        email: Optional[str] = None,
+        password: Optional[str] = None,
         profile_image_url: str = "/user.png",
         role: str = "pending",
         oauth_sub: Optional[str] = None,
+        external_user_id: Optional[str] = None,
+        phone: Optional[str] = None,
+        auth_provider: Optional[str] = None,
     ) -> Optional[UserModel]:
         with get_db() as db:
             log.info("insert_new_auth")
@@ -110,13 +121,21 @@ class AuthsTable:
             id = str(uuid.uuid4())
 
             auth = AuthModel(
-                **{"id": id, "email": email, "password": password, "active": True}
+                **{
+                    "id": id, 
+                    "email": email, 
+                    "password": password, 
+                    "active": True,
+                    "external_user_id": external_user_id,
+                    "phone": phone,
+                    "auth_provider": auth_provider,
+                }
             )
             result = Auth(**auth.model_dump())
             db.add(result)
 
             user = Users.insert_new_user(
-                id, name, email, profile_image_url, role, oauth_sub
+                id, name, email, profile_image_url, role, oauth_sub, external_user_id, phone, auth_provider
             )
 
             db.commit()
@@ -138,6 +157,9 @@ class AuthsTable:
             with get_db() as db:
                 auth = db.query(Auth).filter_by(id=user.id, active=True).first()
                 if auth:
+                    # Handle external auth users who might not have a password
+                    if auth.password is None:
+                        return None  # External auth users should use specific auth methods
                     if verify_password(password, auth.password):
                         return user
                     else:
@@ -164,6 +186,28 @@ class AuthsTable:
         try:
             with get_db() as db:
                 auth = db.query(Auth).filter_by(email=email, active=True).first()
+                if auth:
+                    user = Users.get_user_by_id(auth.id)
+                    return user
+        except Exception:
+            return None
+
+    def authenticate_user_by_external_id(self, external_user_id: str) -> Optional[UserModel]:
+        log.info(f"authenticate_user_by_external_id: {external_user_id}")
+        try:
+            with get_db() as db:
+                auth = db.query(Auth).filter_by(external_user_id=external_user_id, active=True).first()
+                if auth:
+                    user = Users.get_user_by_id(auth.id)
+                    return user
+        except Exception:
+            return None
+
+    def authenticate_user_by_phone(self, phone: str) -> Optional[UserModel]:
+        log.info(f"authenticate_user_by_phone: {phone}")
+        try:
+            with get_db() as db:
+                auth = db.query(Auth).filter_by(phone=phone, active=True).first()
                 if auth:
                     user = Users.get_user_by_id(auth.id)
                     return user

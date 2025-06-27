@@ -1,6 +1,6 @@
 import adapter from '@sveltejs/adapter-static';
-import * as child_process from 'node:child_process';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import * as child_process from 'node:child_process';
 import fs from 'node:fs';
 
 /** @type {import('@sveltejs/kit').Config} */
@@ -17,6 +17,9 @@ const config = {
 			assets: 'build',
 			fallback: 'index.html'
 		}),
+		alias: {
+			$lib: './src/lib'
+		},
 		// poll for new version name every 60 seconds (to trigger reload mechanic in +layout.svelte)
 		version: {
 			name: (() => {
@@ -27,7 +30,7 @@ const config = {
 					// or current timestamp
 					try {
 						return (
-							JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+							JSON.parse(fs.readFileSync('./package.json', 'utf8'))
 								?.version || Date.now().toString()
 						);
 					} catch {
@@ -46,7 +49,7 @@ const config = {
 		// 	toggleButtonPos: 'bottom-right' // Position of the toggle button
 		// }
 	},
-	onwarn: (warning, handler) => {
+	onwarn: (/** @type {{ code: any; }} */ warning, /** @type {(arg0: any) => void} */ handler) => {
 		const { code } = warning;
 		if (code === 'css-unused-selector') return;
 
