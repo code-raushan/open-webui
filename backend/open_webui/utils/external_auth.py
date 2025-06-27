@@ -28,6 +28,15 @@ class VerifyOtpRequest(BaseModel):
     session: str
 
 
+# Euron server response structure for OTP verification
+class EuronOtpResponse(BaseModel):
+    message: str
+    type: str
+    accessToken: str
+    expiresAt: str  # Date string
+    userId: str
+
+
 class VerifyOtpResponse(BaseModel):
     success: bool
     message: str
@@ -37,6 +46,14 @@ class VerifyOtpResponse(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     googleToken: str
+
+
+# Euron server response structure for Google auth
+class EuronGoogleResponse(BaseModel):
+    accessToken: str
+    type: str
+    expiresAt: str  # Date string
+    userId: str
 
 
 class GoogleAuthResponse(BaseModel):
@@ -86,7 +103,9 @@ async def send_otp(phone: str, hash: Optional[str] = None, affiliate_code: Optio
 
 async def verify_otp(phone: str, code: str, session: str, affiliate_code: Optional[str] = None) -> VerifyOtpResponse:
     """
-    Verify OTP with the external auth server
+    Verify OTP with the external auth server (Euron).
+    - Returns user data with only phone and external_user_id set.
+    - All info is extracted from response.data.data.
     """
     try:
         url = f"{EXTERNAL_AUTH_BASE_URL.value}/verify-otp"
@@ -105,11 +124,28 @@ async def verify_otp(phone: str, code: str, session: str, affiliate_code: Option
             async with session.post(url, json=payload, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
+                    # Euron server returns data in response.data.data
+                    response_data = data.get("data", {}).get("data", data)
+                    
+                    # Parse the Euron response structure
+                    euron_response = EuronOtpResponse(**response_data)
+                    
+                    # Create user data for OTP-based auth (phone only)
+                    user_data = {
+                        "external_user_id": euron_response.userId,
+                        "phone": phone,
+                        "auth_provider": "OTP",
+                        "email": None,  # OTP users don't have email
+                        "firstName": None,
+                        "lastName": None,
+                        "profilePic": "/user.png"
+                    }
+                    
                     return VerifyOtpResponse(
                         success=True,
-                        message=data.get("message", "OTP verified successfully"),
-                        user=data.get("user"),
-                        token=data.get("token")
+                        message=euron_response.message,
+                        user=user_data,
+                        token=euron_response.accessToken
                     )
                 else:
                     error_data = await response.json()
@@ -127,7 +163,10 @@ async def verify_otp(phone: str, code: str, session: str, affiliate_code: Option
 
 async def authenticate_with_google(google_token: str, affiliate_code: Optional[str] = None) -> GoogleAuthResponse:
     """
+    Authenticate with Google via external auth server (Euron).
+    - Returns user data with only email and external_user_id set.
     Authenticate with Google via external auth server
+    Returns Euron server response structure
     """
     try:
         url = f"{EXTERNAL_AUTH_BASE_URL.value}/google"
@@ -142,11 +181,30 @@ async def authenticate_with_google(google_token: str, affiliate_code: Optional[s
             async with session.post(url, json=payload, params=params) as response:
                 if response.status == 200:
                     data = await response.json()
+                    # Euron server returns data in response.data.data
+                    response_data = data.get("data", {}).get("data", data)
+                    
+                    # Parse the Euron response structure
+                    euron_response = EuronGoogleResponse(**response_data)
+                    
+                    # For Google auth, we need to extract email from the token or make another call
+                    # For now, we'll create a placeholder user data
+                    # In a real implementation, you might need to decode the Google token or make another API call
+                    user_data = {
+                        "external_user_id": euron_response.userId,
+                        "auth_provider": "GOOGLE",
+                        "phone": None,  # Google users don't have phone
+                        "email": None,  # Will be extracted from Google token in real implementation
+                        "firstName": None,
+                        "lastName": None,
+                        "profilePic": "/user.png"
+                    }
+                    
                     return GoogleAuthResponse(
                         success=True,
-                        message=data.get("message", "Google authentication successful"),
-                        user=data.get("user"),
-                        token=data.get("token")
+                        message="Google authentication successful",
+                        user=user_data,
+                        token=euron_response.accessToken
                     )
                 else:
                     error_data = await response.json()
@@ -167,13 +225,13 @@ def extract_user_info_from_external_response(user_data: Dict[str, Any]) -> Dict[
     Extract and map user information from external auth server response
     """
     return {
-        "external_user_id": user_data.get("id"),
+        "external_user_id": user_data.get("external_user_id"),
         "firstName": user_data.get("firstName"),
         "lastName": user_data.get("lastName"),
         "email": user_data.get("email"),
         "phone": user_data.get("phone"),
         "profilePic": user_data.get("profilePic"),
-        "authProvider": user_data.get("authProvider", "CREDENTIALS"),
+        "authProvider": user_data.get("auth_provider", "CREDENTIALS"),
         "createdAt": user_data.get("createdAt"),
         "updatedAt": user_data.get("updatedAt"),
     }

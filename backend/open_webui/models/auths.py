@@ -22,7 +22,7 @@ class Auth(Base):
 
     id = Column(String, primary_key=True)
     email = Column(String, nullable=True, unique=True)
-    password = Column(Text)
+    password = Column(Text, nullable=True)
     active = Column(Boolean)
     
     # External authentication fields
@@ -34,7 +34,7 @@ class Auth(Base):
 class AuthModel(BaseModel):
     id: str
     email: Optional[str] = None
-    password: str
+    password: Optional[str] = None
     active: bool = True
     external_user_id: Optional[str] = None
     phone: Optional[str] = None
@@ -57,7 +57,7 @@ class ApiKey(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
-    email: str
+    email: Optional[str] = None
     name: str
     role: str
     profile_image_url: str
@@ -68,7 +68,7 @@ class SigninResponse(Token, UserResponse):
 
 
 class SigninForm(BaseModel):
-    email: str
+    email: Optional[str] = None
     password: str
 
 
@@ -93,7 +93,7 @@ class UpdatePasswordForm(BaseModel):
 
 class SignupForm(BaseModel):
     name: str
-    email: str
+    email: Optional[str] = None
     password: str
     profile_image_url: Optional[str] = "/user.png"
 
@@ -105,9 +105,9 @@ class AddUserForm(SignupForm):
 class AuthsTable:
     def insert_new_auth(
         self,
-        email: str,
-        password: str,
         name: str,
+        email: Optional[str] = None,
+        password: Optional[str] = None,
         profile_image_url: str = "/user.png",
         role: str = "pending",
         oauth_sub: Optional[str] = None,
@@ -157,6 +157,9 @@ class AuthsTable:
             with get_db() as db:
                 auth = db.query(Auth).filter_by(id=user.id, active=True).first()
                 if auth:
+                    # Handle external auth users who might not have a password
+                    if auth.password is None:
+                        return None  # External auth users should use specific auth methods
                     if verify_password(password, auth.password):
                         return user
                     else:

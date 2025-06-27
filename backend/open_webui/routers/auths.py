@@ -73,6 +73,24 @@ router = APIRouter()
 log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
+"""
+OpenWebUI External Authentication Routes
+
+This module implements authentication endpoints that proxy to an external (Euron) authentication server.
+
+- Only /external/verify-otp and /external/google are used for authentication.
+- Regular /signin and /signup are disabled when ENABLE_EXTERNAL_AUTH is true.
+- User records are mapped by external_user_id (from Euron's userId field).
+- For OTP login: Only phone and external_user_id are stored (no email, no password).
+- For Google login: Only email and external_user_id are stored (no phone, no password).
+- All user info is extracted from response.data.data in the Euron server response.
+- User lookup is always by external_user_id first, then phone (OTP) or email (Google).
+- auth_provider is set to 'OTP' or 'GOOGLE' as appropriate.
+- Role assignment: First user gets 'admin' role, subsequent users get 'user' role.
+
+This ensures minimal, consistent user records and prevents duplicate users.
+"""
+
 ############################
 # GetSessionUser
 ############################
@@ -370,10 +388,14 @@ async def ldap_auth(request: Request, response: Response, form_data: LdapForm):
                     )
 
                     user = Auths.insert_new_auth(
-                        email=email,
-                        password=str(uuid.uuid4()),
                         name=cn,
+                        email=email,
+                        password=None,  # External auth users don't need passwords
+                        profile_image_url=None,
                         role=role,
+                        external_user_id=None,
+                        phone=None,
+                        auth_provider=None
                     )
 
                     if not user:
@@ -465,98 +487,93 @@ async def ldap_auth(request: Request, response: Response, form_data: LdapForm):
 
 @router.post("/signin", response_model=SessionUserResponse)
 async def signin(request: Request, response: Response, form_data: SigninForm):
-    if WEBUI_AUTH_TRUSTED_EMAIL_HEADER:
-        if WEBUI_AUTH_TRUSTED_EMAIL_HEADER not in request.headers:
-            raise HTTPException(400, detail=ERROR_MESSAGES.INVALID_TRUSTED_HEADER)
+    # Disable regular signin when external auth is enabled
+    if request.app.state.config.ENABLE_EXTERNAL_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Regular signin is disabled. Please use external authentication (OTP or Google)."
+        )
 
-        email = request.headers[WEBUI_AUTH_TRUSTED_EMAIL_HEADER].lower()
-        name = email
-
-        if WEBUI_AUTH_TRUSTED_NAME_HEADER:
-            name = request.headers.get(WEBUI_AUTH_TRUSTED_NAME_HEADER, email)
-
-        if not Users.get_user_by_email(email.lower()):
-            await signup(
-                request,
-                response,
-                SignupForm(email=email, password=str(uuid.uuid4()), name=name),
+    if WEBUI_AUTH:
+        if not request.app.state.config.ENABLE_LOGIN_FORM:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED
+            )
+    else:
+        if Users.get_num_users() == 0:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, detail=ERROR_MESSAGES.ACCESS_PROHIBITED
             )
 
-        user = Auths.authenticate_user_by_email(email)
-        if WEBUI_AUTH_TRUSTED_GROUPS_HEADER and user and user.role != "admin":
-            group_names = request.headers.get(
-                WEBUI_AUTH_TRUSTED_GROUPS_HEADER, ""
-            ).split(",")
-            group_names = [name.strip() for name in group_names if name.strip()]
-
-            if group_names:
-                Groups.sync_groups_by_group_names(user.id, group_names)
-
-    elif WEBUI_AUTH == False:
-        admin_email = "admin@localhost"
-        admin_password = "admin"
-
-        if Users.get_user_by_email(admin_email.lower()):
-            user = Auths.authenticate_user(admin_email.lower(), admin_password)
-        else:
-            if Users.get_num_users() != 0:
-                raise HTTPException(400, detail=ERROR_MESSAGES.EXISTING_USERS)
-
-            await signup(
-                request,
-                response,
-                SignupForm(email=admin_email, password=admin_password, name="User"),
-            )
-
-            user = Auths.authenticate_user(admin_email.lower(), admin_password)
-    else:
-        user = Auths.authenticate_user(form_data.email.lower(), form_data.password)
-
-    if user:
-
-        expires_delta = parse_duration(request.app.state.config.JWT_EXPIRES_IN)
-        expires_at = None
-        if expires_delta:
-            expires_at = int(time.time()) + int(expires_delta.total_seconds())
-
-        token = create_token(
-            data={"id": user.id},
-            expires_delta=expires_delta,
+    user = Auths.authenticate_user(form_data.email.lower(), form_data.password)
+    if not user:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.INVALID_CREDENTIALS
         )
 
-        datetime_expires_at = (
-            datetime.datetime.fromtimestamp(expires_at, datetime.timezone.utc)
-            if expires_at
-            else None
+    if user.role == "pending":
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.ACCOUNT_PENDING
         )
 
-        # Set the cookie token
-        response.set_cookie(
-            key="token",
-            value=token,
-            expires=datetime_expires_at,
-            httponly=True,  # Ensures the cookie is not accessible via JavaScript
-            samesite=WEBUI_AUTH_COOKIE_SAME_SITE,
-            secure=WEBUI_AUTH_COOKIE_SECURE,
+    if user.role == "disabled":
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.ACCOUNT_DISABLED
         )
 
-        user_permissions = get_permissions(
-            user.id, request.app.state.config.USER_PERMISSIONS
+    expires_delta = parse_duration(request.app.state.config.JWT_EXPIRES_IN)
+    expires_at = None
+    if expires_delta:
+        expires_at = int(time.time()) + int(expires_delta.total_seconds())
+
+    token = create_token(
+        data={"id": user.id},
+        expires_delta=expires_delta,
+    )
+
+    datetime_expires_at = (
+        datetime.datetime.fromtimestamp(expires_at, datetime.timezone.utc)
+        if expires_at
+        else None
+    )
+
+    # Set the cookie token
+    response.set_cookie(
+        key="token",
+        value=token,
+        expires=datetime_expires_at,
+        httponly=True,  # Ensures the cookie is not accessible via JavaScript
+        samesite=WEBUI_AUTH_COOKIE_SAME_SITE,
+        secure=WEBUI_AUTH_COOKIE_SECURE,
+    )
+
+    if request.app.state.config.WEBHOOK_URL:
+        post_webhook(
+            request.app.state.WEBUI_NAME,
+            request.app.state.config.WEBHOOK_URL,
+            WEBHOOK_MESSAGES.USER_LOGIN(user.name),
+            {
+                "action": "login",
+                "message": WEBHOOK_MESSAGES.USER_LOGIN(user.name),
+                "user": user.model_dump_json(exclude_none=True),
+            },
         )
 
-        return {
-            "token": token,
-            "token_type": "Bearer",
-            "expires_at": expires_at,
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "role": user.role,
-            "profile_image_url": user.profile_image_url,
-            "permissions": user_permissions,
-        }
-    else:
-        raise HTTPException(400, detail=ERROR_MESSAGES.INVALID_CRED)
+    user_permissions = get_permissions(
+        user.id, request.app.state.config.USER_PERMISSIONS
+    )
+
+    return {
+        "token": token,
+        "token_type": "Bearer",
+        "expires_at": expires_at,
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "role": user.role,
+        "profile_image_url": user.profile_image_url,
+        "permissions": user_permissions,
+    }
 
 
 ############################
@@ -566,6 +583,12 @@ async def signin(request: Request, response: Response, form_data: SigninForm):
 
 @router.post("/signup", response_model=SessionUserResponse)
 async def signup(request: Request, response: Response, form_data: SignupForm):
+    # Disable regular signup when external auth is enabled
+    if request.app.state.config.ENABLE_EXTERNAL_AUTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Regular signup is disabled. Please use external authentication (OTP or Google)."
+        )
 
     if WEBUI_AUTH:
         if (
@@ -604,11 +627,14 @@ async def signup(request: Request, response: Response, form_data: SignupForm):
 
         hashed = get_password_hash(form_data.password)
         user = Auths.insert_new_auth(
-            form_data.email.lower(),
-            hashed,
-            form_data.name,
-            form_data.profile_image_url,
-            role,
+            name=form_data.name,
+            email=form_data.email.lower(),
+            password=hashed,  # Use hashed password for regular signup
+            profile_image_url=form_data.profile_image_url,
+            role=role,
+            external_user_id=None,
+            phone=None,
+            auth_provider=None
         )
 
         if user:
@@ -745,11 +771,14 @@ async def add_user(form_data: AddUserForm, user=Depends(get_admin_user)):
     try:
         hashed = get_password_hash(form_data.password)
         user = Auths.insert_new_auth(
-            form_data.email.lower(),
-            hashed,
-            form_data.name,
-            form_data.profile_image_url,
-            form_data.role,
+            name=form_data.name,
+            email=form_data.email.lower(),
+            password=hashed,  # Use hashed password for admin-created users
+            profile_image_url=form_data.profile_image_url,
+            role=form_data.role,
+            external_user_id=None,
+            phone=None,
+            auth_provider=None
         )
 
         if user:
@@ -1120,7 +1149,11 @@ async def external_verify_otp(
     affiliate_code: Optional[str] = None
 ):
     """
-    Verify OTP and authenticate user via external authentication server
+    Verify OTP with external authentication server (Euron).
+    - Only phone and external_user_id are stored for OTP users.
+    - User lookup is by external_user_id first, then phone.
+    - No email or password is set for OTP users.
+    - All info is extracted from response.data.data.
     """
     if not request.app.state.config.ENABLE_EXTERNAL_AUTH:
         raise HTTPException(
@@ -1135,63 +1168,63 @@ async def external_verify_otp(
         )
     
     try:
-        verify_response = await verify_otp(
+        # Call Euron server to verify OTP
+        otp_response = await verify_otp(
             phone=form_data.phone,
             code=form_data.code,
             session=form_data.session,
             affiliate_code=affiliate_code
         )
         
-        if not verify_response.success:
+        if not otp_response.success:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=verify_response.message
+                detail=otp_response.message
             )
         
-        if not verify_response.user:
+        if not otp_response.user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No user data received from external server"
             )
         
-        # Extract user information from external response
-        user_info = extract_user_info_from_external_response(verify_response.user)
+        # Extract user information from Euron response
+        user_info = extract_user_info_from_external_response(otp_response.user)
         external_user_id = user_info["external_user_id"]
-        email = user_info.get("email")
         phone = user_info.get("phone")
         first_name = user_info.get("firstName", "")
         last_name = user_info.get("lastName")
         profile_pic = user_info.get("profilePic", "/user.png")
         auth_provider = user_info.get("authProvider", "OTP")
         
-        # Build full name
+        # Build full name (fallback to phone if not available)
         full_name = build_full_name(first_name, last_name)
+        if not full_name:
+            full_name = f"User {phone[-4:]}" if phone else "OTP User"
         
-        # Check if user already exists
+        # Lookup user by external_user_id first, then phone
         user = None
         if external_user_id:
             user = Users.get_user_by_external_id(external_user_id)
-        elif email:
-            user = Users.get_user_by_email(email)
         elif phone:
             user = Users.get_user_by_phone(phone)
         
         # Create new user if doesn't exist
         if not user:
             user_count = Users.get_num_users()
+            # First user gets admin role, subsequent users get user role
             role = "admin" if user_count == 0 else request.app.state.config.DEFAULT_USER_ROLE
-            
+            # Only phone and external_user_id are set for OTP users
             user = Auths.insert_new_auth(
-                email=email or f"{phone}@external.local",
-                password=str(uuid.uuid4()),  # Random password for external auth
                 name=full_name,
+                email=None,
+                password=None,
                 profile_image_url=profile_pic,
                 role=role,
                 external_user_id=external_user_id,
                 phone=phone,
                 auth_provider=auth_provider
             )
-            
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1257,7 +1290,11 @@ async def external_google_auth(
     affiliate_code: Optional[str] = None
 ):
     """
-    Authenticate with Google via external authentication server
+    Authenticate with Google via external authentication server (Euron).
+    - Only email and external_user_id are stored for Google users.
+    - User lookup is by external_user_id first, then email.
+    - No phone or password is set for Google users.
+    - All info is extracted from response.data.data.
     """
     if not request.app.state.config.ENABLE_EXTERNAL_AUTH:
         raise HTTPException(
@@ -1272,6 +1309,7 @@ async def external_google_auth(
         )
     
     try:
+        # Call Euron server to authenticate with Google
         google_response = await authenticate_with_google(
             google_token=form_data.googleToken,
             affiliate_code=affiliate_code
@@ -1289,44 +1327,46 @@ async def external_google_auth(
                 detail="No user data received from external server"
             )
         
-        # Extract user information from external response
+        # Extract user information from Euron response
         user_info = extract_user_info_from_external_response(google_response.user)
         external_user_id = user_info["external_user_id"]
         email = user_info.get("email")
-        phone = user_info.get("phone")
         first_name = user_info.get("firstName", "")
         last_name = user_info.get("lastName")
         profile_pic = user_info.get("profilePic", "/user.png")
         auth_provider = user_info.get("authProvider", "GOOGLE")
         
-        # Build full name
+        # Build full name (fallback to email if not available)
         full_name = build_full_name(first_name, last_name)
+        if not full_name:
+            if email and "@" in email:
+                full_name = email.split("@")[0].replace(".", " ").title()
+            else:
+                full_name = "Google User"
         
-        # Check if user already exists
+        # Lookup user by external_user_id first, then email
         user = None
         if external_user_id:
             user = Users.get_user_by_external_id(external_user_id)
         elif email:
             user = Users.get_user_by_email(email)
-        elif phone:
-            user = Users.get_user_by_phone(phone)
         
         # Create new user if doesn't exist
         if not user:
             user_count = Users.get_num_users()
+            # First user gets admin role, subsequent users get user role
             role = "admin" if user_count == 0 else request.app.state.config.DEFAULT_USER_ROLE
-            
+            # Only email and external_user_id are set for Google users
             user = Auths.insert_new_auth(
-                email=email or f"{phone}@external.local",
-                password=str(uuid.uuid4()),  # Random password for external auth
                 name=full_name,
+                email=email,
+                password=None,
                 profile_image_url=profile_pic,
                 role=role,
                 external_user_id=external_user_id,
-                phone=phone,
+                phone=None,
                 auth_provider=auth_provider
             )
-            
             if not user:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

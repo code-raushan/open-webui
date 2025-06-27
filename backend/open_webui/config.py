@@ -1002,7 +1002,7 @@ MODEL_ORDER_LIST = PersistentConfig(
 DEFAULT_USER_ROLE = PersistentConfig(
     "DEFAULT_USER_ROLE",
     "ui.default_user_role",
-    os.getenv("DEFAULT_USER_ROLE", "pending"),
+    os.getenv("DEFAULT_USER_ROLE", "user"),
 )
 
 PENDING_USER_OVERLAY_TITLE = PersistentConfig(
@@ -3141,13 +3141,13 @@ LDAP_ATTRIBUTE_FOR_GROUPS = PersistentConfig(
 ENABLE_EXTERNAL_AUTH = PersistentConfig(
     "ENABLE_EXTERNAL_AUTH",
     "external_auth.enable",
-    os.environ.get("ENABLE_EXTERNAL_AUTH", "false").lower() == "true",
+    os.environ.get("ENABLE_EXTERNAL_AUTH", "true").lower() == "true",
 )
-
+#TODO: Change to production URL before production deployment
 EXTERNAL_AUTH_BASE_URL = PersistentConfig(
     "EXTERNAL_AUTH_BASE_URL",
     "external_auth.base_url",
-    os.environ.get("EXTERNAL_AUTH_BASE_URL", "https://api.euron.one/api/v1/auth"),
+    os.environ.get("EXTERNAL_AUTH_BASE_URL", "https://dev-api.euron.one/api/v1/auth"),
 )
 
 EXTERNAL_AUTH_TIMEOUT = PersistentConfig(

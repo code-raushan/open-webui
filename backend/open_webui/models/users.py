@@ -87,7 +87,7 @@ class UserListResponse(BaseModel):
 class UserResponse(BaseModel):
     id: str
     name: str
-    email: str
+    email: Optional[str] = None
     role: str
     profile_image_url: str
 
@@ -107,7 +107,7 @@ class UserRoleUpdateForm(BaseModel):
 class UserUpdateForm(BaseModel):
     role: str
     name: str
-    email: str
+    email: Optional[str] = None
     profile_image_url: str
     password: Optional[str] = None
 
@@ -117,7 +117,7 @@ class UsersTable:
         self,
         id: str,
         name: str,
-        email: str,
+        email: Optional[str] = None,
         profile_image_url: str = "/user.png",
         role: str = "pending",
         oauth_sub: Optional[str] = None,
@@ -167,8 +167,10 @@ class UsersTable:
         except Exception:
             return None
 
-    def get_user_by_email(self, email: str) -> Optional[UserModel]:
+    def get_user_by_email(self, email: Optional[str]) -> Optional[UserModel]:
         try:
+            if email is None:
+                return None
             with get_db() as db:
                 user = db.query(User).filter_by(email=email).first()
                 return UserModel.model_validate(user)
@@ -214,7 +216,7 @@ class UsersTable:
                     query = query.filter(
                         or_(
                             User.name.ilike(f"%{query_key}%"),
-                            User.email.ilike(f"%{query_key}%"),
+                            User.email.ilike(f"%{query_key}%") if User.email.isnot(None) else False,
                         )
                     )
 
