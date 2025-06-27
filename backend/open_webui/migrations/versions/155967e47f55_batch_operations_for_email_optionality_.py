@@ -22,10 +22,19 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # Use batch operations for SQLite to properly modify table schemas
     with op.batch_alter_table('user', schema=None) as batch_op:
-        # Drop existing indexes first
-        batch_op.drop_index('user_api_key')
-        batch_op.drop_index('user_id')
-        batch_op.drop_index('user_oauth_sub')
+        # Drop existing indexes first (with error handling)
+        try:
+            batch_op.drop_index('user_api_key')
+        except:
+            pass
+        try:
+            batch_op.drop_index('user_id')
+        except:
+            pass
+        try:
+            batch_op.drop_index('user_oauth_sub')
+        except:
+            pass
         
         # Modify email column to be nullable (optional)
         batch_op.alter_column('email',
@@ -41,8 +50,11 @@ def upgrade() -> None:
         batch_op.create_unique_constraint('user_phone', ['phone'])
 
     with op.batch_alter_table('auth', schema=None) as batch_op:
-        # Drop existing index first
-        batch_op.drop_index('auth_id')
+        # Drop existing index first (with error handling)
+        try:
+            batch_op.drop_index('auth_id')
+        except:
+            pass
         
         # Modify email column to be nullable (optional)
         batch_op.alter_column('email',
