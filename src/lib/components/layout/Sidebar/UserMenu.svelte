@@ -218,23 +218,23 @@
 								getUsageInfo();
 							}}
 						>
-							<div class=" flex items-center">
+							<!-- <div class=" flex items-center">
 								<span class="relative flex size-2">
 									<span
 										class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
 									/>
 									<span class="relative inline-flex rounded-full size-2 bg-green-500" />
 								</span>
-							</div>
+							</div> -->
 
-							<div class=" ">
+							<!-- <div class=" ">
 								<span class="">
 									{$i18n.t('Active Users')}:
 								</span>
 								<span class=" font-semibold">
 									{usage?.user_ids?.length}
 								</span>
-							</div>
+							</div> -->
 						</div>
 					</Tooltip>
 				{/if}
