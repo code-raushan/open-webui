@@ -152,10 +152,17 @@
 	};
 </script>
 
-<div class="w-full sm:max-w-md px-10 min-h-screen flex flex-col text-center">
+<div class="w-full sm:max-w-md px-10 min-h-screen flex flex-col text-center relative">
+	<!-- Centered Euron Logo Top -->
+	<div class="w-full flex justify-center absolute top-4 left-0 z-10">
+		<a href="https://euron.one" target="_blank" rel="noopener noreferrer" title="Visit Euron">
+			<img src="https://euron-dev-thumbnails.s3.ap-south-1.amazonaws.com/logos/euron-logo-high-res.png" alt="Euron Logo" class="h-8 w-auto object-contain" />
+		</a>
+	</div>
+
 	<div class="my-auto pb-10 w-full dark:text-gray-100">
 		<!-- Back Button -->
-		<div class="mb-6 text-left">
+		<!-- <div class="mb-6 text-left">
 			<button
 				class="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition"
 				on:click={onBack}
@@ -163,7 +170,7 @@
 				<ArrowLeft className="w-4 h-4 mr-1" />
 				{$i18n.t('Back')}
 			</button>
-		</div>
+		</div> -->
 
 		<!-- Title -->
 		<div class="mb-6">
@@ -188,16 +195,25 @@
 					<label for="phone" class="text-sm font-medium text-left mb-1 block">
 						{$i18n.t('Phone Number')}
 					</label>
-					<input
-						bind:value={phone}
-						on:input={handlePhoneInput}
-						type="tel"
-						id="phone"
-						class="my-0.5 w-full text-sm outline-hidden bg-transparent"
-						autocomplete="tel"
-						placeholder={$i18n.t('Enter 10-digit phone number')}
-						required
-					/>
+					<div class="flex items-center">
+						<div class="flex items-center border border-gray-300 dark:border-gray-700 rounded-l-md bg-transparent px-3 py-2 h-11 min-w-[3.5rem] whitespace-nowrap justify-center">
+							<span class="text-sm font-medium text-gray-700 dark:text-gray-300 select-none">+91</span>
+						</div>
+						<input
+							bind:value={phone}
+							on:input={handlePhoneInput}
+							type="tel"
+							id="phone"
+							class="w-full text-sm border-t border-b border-r border-gray-300 dark:border-gray-700 rounded-r-md px-3 py-2 h-11 bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+							autocomplete="tel"
+							placeholder={$i18n.t('Enter 10-digit phone number')}
+							required
+							style="font-size: 1rem;"
+						/>
+					</div>
+					<div class="mt-1 text-xs text-gray-500 dark:text-gray-400 text-left">
+						Only Indian phone numbers are allowed.
+					</div>
 				</div>
 
 				<div class="mt-5">
@@ -232,11 +248,12 @@
 						on:input={handleOtpInput}
 						type="text"
 						id="otp"
-						class="my-0.5 w-full text-sm outline-hidden bg-transparent text-center text-lg tracking-widest"
+						class="w-full text-lg border border-gray-300 dark:border-gray-700 rounded-md px-3 py-2 bg-transparent text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
 						autocomplete="one-time-code"
 						placeholder={$i18n.t('Enter 6-digit code')}
 						maxlength="6"
 						required
+						style="font-size: 1.25rem; letter-spacing: 0.2em;"
 					/>
 					<div class="mt-2 text-xs text-gray-600 dark:text-gray-500">
 						{$i18n.t('Code sent to')} {phone}
