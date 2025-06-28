@@ -1198,9 +1198,9 @@ async def external_verify_otp(
         auth_provider = user_info.get("authProvider", "OTP")
         
         # Build full name (fallback to phone if not available)
-        full_name = build_full_name(first_name, last_name)
-        if not full_name:
-            full_name = f"User {phone[-4:]}" if phone else "OTP User"
+        full_name = "User"
+        # if not full_name:
+        #     full_name = f"User {phone[-4:]}" if phone else "OTP User"
         
         # Lookup user by external_user_id first, then phone
         user = None
@@ -1217,7 +1217,7 @@ async def external_verify_otp(
             # Only phone and external_user_id are set for OTP users
             user = Auths.insert_new_auth(
                 name=full_name,
-                email=None,
+                email=None,  # OTP users don't have email
                 password=None,
                 profile_image_url=profile_pic,
                 role=role,
@@ -1338,11 +1338,11 @@ async def external_google_auth(
         
         # Build full name (fallback to email if not available)
         full_name = build_full_name(first_name, last_name)
-        if not full_name:
-            if email and "@" in email:
-                full_name = email.split("@")[0].replace(".", " ").title()
-            else:
-                full_name = "Google User"
+        # if not full_name:
+        #     if email and "@" in email:
+        #         full_name = email.split("@")[0].replace(".", " ").title()
+        #     else:
+        #         full_name = "User"
         
         # Lookup user by external_user_id first, then email
         user = None

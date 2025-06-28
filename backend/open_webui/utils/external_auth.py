@@ -54,6 +54,9 @@ class EuronGoogleResponse(BaseModel):
     type: str
     expiresAt: str  # Date string
     userId: str
+    email: str
+    firstName: str
+    lastName: Optional[str] = None
 
 
 class GoogleAuthResponse(BaseModel):
@@ -196,16 +199,14 @@ async def authenticate_with_google(google_token: str, affiliate_code: Optional[s
                     # Parse the Euron response structure
                     euron_response = EuronGoogleResponse(**response_data)
                     
-                    # For Google auth, we need to extract email from the token or make another call
-                    # For now, we'll create a placeholder user data
-                    # In a real implementation, you might need to decode the Google token or make another API call
+                    # Create user data for Google-based auth with email
                     user_data = {
                         "external_user_id": euron_response.userId,
                         "auth_provider": "GOOGLE",
                         "phone": None,  # Google users don't have phone
-                        "email": None,  # Will be extracted from Google token in real implementation
-                        "firstName": None,
-                        "lastName": None,
+                        "email": euron_response.email,  # Extract email from response
+                        "firstName": euron_response.firstName,
+                        "lastName": euron_response.lastName,
                         "profilePic": "/user.png"
                     }
                     

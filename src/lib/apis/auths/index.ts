@@ -775,3 +775,41 @@ export const verifyOtp = async (phone: string, code: string, session: string, af
 
 	return res;
 };
+
+// External Authentication - Google
+export const authenticateWithGoogle = async (googleToken: string, affiliateCode?: string) => {
+	let error = null;
+
+	const params = new URLSearchParams();
+	if (affiliateCode) {
+		params.append('affiliate_code', affiliateCode);
+	}
+
+	const url = `${WEBUI_API_BASE_URL}/auths/external/google${params.toString() ? `?${params.toString()}` : ''}`;
+
+	const res = await fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		credentials: 'include',
+		body: JSON.stringify({
+			googleToken: googleToken
+		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.error(err);
+			error = err.detail;
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+};

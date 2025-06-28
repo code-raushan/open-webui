@@ -10,6 +10,7 @@
 
 	import Spinner from './common/Spinner.svelte';
 	import ArrowLeft from './icons/ArrowLeft.svelte';
+	import GoogleSignIn from './GoogleSignIn.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -290,6 +291,24 @@
 					</button>
 				</div>
 			</form>
+		{/if}
+
+		<!-- Divider with Google Sign-In -->
+		{#if $config?.features.external_auth_enable_google}
+			<div class="mt-8">
+				<div class="inline-flex items-center justify-center w-full">
+					<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+					<span class="px-3 text-sm font-medium text-gray-900 dark:text-white bg-transparent">
+						{$i18n.t('or')}
+					</span>
+					<hr class="w-32 h-px my-4 border-0 dark:bg-gray-100/10 bg-gray-700/10" />
+				</div>
+				
+				<!-- Google Sign-In Component -->
+				<div class="mt-4">
+					<GoogleSignIn />
+				</div>
+			</div>
 		{/if}
 	</div>
 </div> 

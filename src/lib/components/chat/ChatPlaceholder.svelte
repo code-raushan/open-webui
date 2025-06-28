@@ -44,7 +44,7 @@
 							selectedModelIdx = modelIdx;
 						}}
 					>
-						<Tooltip
+						<!-- <Tooltip
 							content={marked.parse(
 								sanitizeResponseContent(models[selectedModelIdx]?.info?.meta?.description ?? '')
 							)}
@@ -60,7 +60,7 @@
 								alt="logo"
 								draggable="false"
 							/>
-						</Tooltip>
+						</Tooltip> -->
 					</button>
 				{/each}
 			</div>
