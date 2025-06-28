@@ -485,7 +485,7 @@
 
 			<a
 				id="sidebar-new-chat-button"
-				class="flex justify-between items-center flex-1 rounded-lg px-2 py-1 h-full text-right hover:bg-gray-100 dark:hover:bg-gray-900 transition no-drag-region"
+				class="flex justify-between items-center flex-1 rounded-lg px-2 py-1 h-full text-right bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 transition no-drag-region"
 				href="/"
 				draggable="false"
 				on:click={async () => {
@@ -500,15 +500,10 @@
 				}}
 			>
 				<div class="flex items-center">
-					<div class="self-center mx-1.5">
-						<img
-							crossorigin="anonymous"
-							src="{WEBUI_BASE_URL}/static/favicon.png"
-							class="sidebar-new-chat-icon size-5 -translate-x-1.5 rounded-full"
-							alt="logo"
-						/>
-					</div>
-					<div class=" self-center font-medium text-sm text-gray-850 dark:text-white font-primary">
+					<!-- <div class="self-center mx-1.5">
+						<span class="sidebar-logo font-bold text-lg tracking-wide text-gray-900 dark:text-white select-none">euron</span>
+					</div> -->
+					<div class="self-center font-medium text-sm text-gray-850 dark:text-white font-primary">
 						{$i18n.t('New Chat')}
 					</div>
 				</div>

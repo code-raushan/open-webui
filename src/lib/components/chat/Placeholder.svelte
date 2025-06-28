@@ -110,31 +110,14 @@
 			<div class="flex flex-row justify-center gap-3 @sm:gap-3.5 w-fit px-5 max-w-xl">
 				<div class="flex shrink-0 justify-center">
 					<div class="flex -space-x-4 mb-0.5" in:fade={{ duration: 100 }}>
-						{#each models as model, modelIdx}
-							<Tooltip
-								content={(models[modelIdx]?.info?.meta?.tags ?? [])
-									.map((tag) => tag.name.toUpperCase())
-									.join(', ')}
-								placement="top"
-							>
-								<button
-									on:click={() => {
-										selectedModelIdx = modelIdx;
-									}}
-								>
-									<img
-										crossorigin="anonymous"
-										src={model?.info?.meta?.profile_image_url ??
-											($i18n.language === 'dg-DG'
-												? `/doge.png`
-												: `${WEBUI_BASE_URL}/static/favicon.png`)}
-										class=" size-9 @sm:size-10 rounded-full border-[1px] border-gray-100 dark:border-none"
-										alt="logo"
-										draggable="false"
-									/>
+						<!-- Removed model/logo images from chat center placeholder -->
+						<!-- {#each models as model, modelIdx}
+							<Tooltip ... >
+								<button ... >
+									<img ... />
 								</button>
 							</Tooltip>
-						{/each}
+						{/each} -->
 					</div>
 				</div>
 

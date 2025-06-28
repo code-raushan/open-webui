@@ -113,7 +113,7 @@
 	id="message-{message.id}"
 >
 	{#if !($settings?.chatBubble ?? true)}
-		<div class={`shrink-0 ltr:mr-3 rtl:ml-3`}>
+		<!-- <div class={`shrink-0 ltr:mr-3 rtl:ml-3`}>
 			<ProfileImage
 				src={message.user
 					? ($models.find((m) => m.id === message.user)?.info?.meta?.profile_image_url ??
@@ -121,7 +121,7 @@
 					: (user?.profile_image_url ?? '/user.png')}
 				className={'size-8 user-message-profile-image'}
 			/>
-		</div>
+		</div> -->
 	{/if}
 	<div class="flex-auto w-0 max-w-full pl-1">
 		{#if !($settings?.chatBubble ?? true)}

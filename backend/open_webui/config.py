@@ -86,7 +86,7 @@ def save_to_db(data):
     with get_db() as db:
         existing_config = db.query(Config).first()
         if not existing_config:
-            new_config = Config(data=data, version=0)
+            new_config = Config(data=data, version=0, created_at=datetime.now())
             db.add(new_config)
         else:
             existing_config.data = data

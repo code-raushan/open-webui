@@ -22,6 +22,7 @@
 		"pyodide:fetch": "node scripts/prepare-pyodide.js"
 	},
 	"devDependencies": {
+		"@google-cloud/local-auth": "^3.0.1",
 		"@sveltejs/adapter-auto": "3.2.2",
 		"@sveltejs/adapter-static": "^3.0.2",
 		"@sveltejs/kit": "^2.5.20",
@@ -36,6 +37,7 @@
 		"eslint-config-prettier": "^9.1.0",
 		"eslint-plugin-cypress": "^3.4.0",
 		"eslint-plugin-svelte": "^2.43.0",
+		"google-auth-library": "^10.1.0",
 		"i18next-parser": "^9.0.1",
 		"postcss": "^8.4.31",
 		"prettier": "^3.3.3",
